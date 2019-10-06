@@ -118,6 +118,7 @@ let createCase = newCase => {
         let c = nforce.createSObject('Case');
         c.set('subject', newCase.subject);
         c.set('description', newCase.description);
+       
         c.set('origin', 'Slack');
         c.set('status', 'New');
 
