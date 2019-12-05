@@ -1,184 +1,78 @@
-"use strict";
 
-let http = require('http');
+const express = require("express");
+const http = require("https");
+const bodyparser=require("body-parser");
+var Parse = require('parse');
+const axios=require("axios");
+const { WebClient } = require('@slack/web-api');
+var Slack = require('node-slack');
+var Client = require('node-rest-client').Client;
+const app = express();
+const  SLACK_VERIFICATION_TOKEN =  process.env.SLACK_VERIFICATION_TOKEN;
+const Workspace=process.env.Workspace;
+app.use(express.static("public"));
+app.use(bodyparser.json());
 
-const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+app.post('/', (req, res) => {
+  
+console.log('welcome',res);
+let cname=req.body.Account.Name;
+  let naming =cname.toLowerCase();
+  console.log('naming',naming);
+  let finalname=naming.replace(/\s/g,'');
+let secfinal=finalname.replace(/,/g,'_');
+   console.log('secfinal',secfinal);
+  console.log('finalname',finalname);
+          let fields = [];
+         let subject;
+   
+  console.log('data',req.body);
+            fields.push({title: "Subject", value:req.body.Subject, short:false});
+            fields.push({title: "Description", value: req.body.Description, short:false});
+             fields.push({title: "AccountName", value:req.body.Account.Name , short:false});
+            fields.push({title: "CaseNumber", value: req.body.CaseNumber, short:false});
+  
+            console.log('case',fields);
+              let message = {
+                text: "A new case has been created/updated:",
+              //attachments: 
+            };
+       console.log('hy1');
+     
+      const url="https://slack.com/api/channels.create";
+   
+       const headers = {
+      
+    "Content-Type": "application/json",
+    "token": `xoxp-701650376675-701650377683-835791408581-cf0f1607d1353e00063de5b0320686ea`,
+        // "HTTP ":'Post',
+         "name":'req.body.Account.Name'
+     
+  };
+  http.get('https://slack.com/api/channels.create?token='+'xoxp-701650376675-701650377683-835791408581-cf0f1607d1353e00063de5b0320686ea'+'&name='+secfinal,(response)=>{
+     http.get('https://slack.com/api/chat.postMessage?token='+'xoxp-701650376675-701650377683-835791408581-cf0f1607d1353e00063de5b0320686ea'+'&channel='+secfinal+'&text='+'the case is created and updated:\n'+
+             'casenumber:'+req.body.CaseNumber+'\n'+'subject:'+req.body.Subject+'\n'+'Description:'+req.body.Description+'\n'+'Status:'+req.body.Status+'\n'+'Account:'+cname
+              ,(res)=>
+               {
+       //  console.log('response',res);
+       });
+  
+  })
+  
+  res.send('Welcome !!');
 
-let Botkit = require('botkit'),
-    formatter = require('./modules/slack-formatter'),
-    salesforce = require('./modules/salesforce'),
-
-    controller = Botkit.slackbot(),
-
-    bot = controller.spawn({
-        token: SLACK_BOT_TOKEN
-    });
-
-bot.startRTM(err => {
-    if (err) {
-        throw new Error('Could not connect to Slack');
-    }
+    })
+var keepAlive = require("node-keepalive");
+//keepAlive({}, app);
+app.get("/", (request, response) => {
+  console.log(Date.now() + " Ping Received");
+  response.sendStatus(200);
 });
-
-
-controller.hears(['help'], 'direct_message,direct_mention,mention', (bot, message) => {
-    bot.reply(message, {
-        text: `You can ask me things like:
-    "Search account Acme" or "Search Acme in acccounts"
-    "Search contact Lisa Smith" or "Search Lisa Smith in contacts"
-    "Search opportunity Big Deal"
-    "Create contact"
-    "Create case"`
-    });
+  const listener = app.listen(process.env.PORT, function() {
+  setInterval(() => {
+  http.get(`https://${process.env.PROJECT_DOMAIN}.glitch.me/`);
+}, 280000);
+  
+  console.log("Your app is listening on port " + listener.address().port);
 });
-
-
-controller.hears(['search account (.*)', 'search (.*) in accounts'], 'direct_message,direct_mention,mention', (bot, message) => {
-    let name = message.match[1];
-    salesforce.findAccount(name)
-        .then(accounts => bot.reply(message, {
-            text: "I found these accounts matching  '" + name + "':",
-            attachments: formatter.formatAccounts(accounts)
-        }))
-        .catch(error => bot.reply(message, error));
-});
-
-controller.hears(['search contact (.*)', 'find contact (.*)'], 'direct_message,direct_mention,mention', (bot, message) => {
-    let name = message.match[1];
-    salesforce.findContact(name)
-        .then(contacts => bot.reply(message, {
-            text: "I found these contacts matching  '" + name + "':",
-            attachments: formatter.formatContacts(contacts)
-        }))
-        .catch(error => bot.reply(message, error));
-});
-
-controller.hears(['top (.*) deals', 'top (.*) opportunities'], 'direct_message,direct_mention,mention', (bot, message) => {
-    let count = message.match[1];
-    salesforce.getTopOpportunities(count)
-        .then(opportunities => bot.reply(message, {
-            text: "Here are your top " + count + " opportunities:",
-            attachments: formatter.formatOpportunities(opportunities)
-        }))
-        .catch(error => bot.reply(message, error));
-});
-
-controller.hears(['search opportunity (.*)', 'find opportunity (.*)'], 'direct_message,direct_mention,mention', (bot, message) => {
-
-    let name = message.match[1];
-    salesforce.findOpportunity(name)
-        .then(opportunities => bot.reply(message, {
-            text: "I found these opportunities matching  '" + name + "':",
-            attachments: formatter.formatOpportunities(opportunities)
-        }))
-        .catch(error => bot.reply(message, error));
-
-});
-
-controller.hears(['create case', 'new case'], 'direct_message,direct_mention,mention', (bot, message) => {
-
-    let subject,
-        description;
-
-    let askSubject = (response, convo) => {
-
-        convo.ask("What's the subject?", (response, convo) => {
-            subject = response.text;
-            askDescription(response, convo);
-            convo.next();
-        });
-
-    };
-
-    let askDescription = (response, convo) => {
-
-        convo.ask('Enter a description for the case', (response, convo) => {
-            description = response.text;
-            salesforce.createCase({subject: subject, description: description})
-                .then(_case => {
-                    bot.reply(message, {
-                        text: "I created the case:",
-                        attachments: formatter.formatCase(_case)
-                    });
-                    convo.next();
-                })
-                .catch(error => {
-                    bot.reply(message, error);
-                    convo.next();
-                });
-        });
-
-    };
-
-    bot.reply(message, "OK, I can help you with that!");
-    bot.startConversation(message, askSubject);
-
-});
-
-controller.hears(['create contact', 'new contact'], 'direct_message,direct_mention,mention', (bot, message) => {
-
-    let firstName,
-        lastName,
-        title,
-        phone;
-
-    let askFirstName = (response, convo) => {
-
-        convo.ask("What's the first name?", (response, convo) => {
-            firstName = response.text;
-            askLastName(response, convo);
-            convo.next();
-        });
-
-    };
-
-    let askLastName = (response, convo) => {
-
-        convo.ask("What's the last name?", (response, convo) => {
-            lastName = response.text;
-            askTitle(response, convo);
-            convo.next();
-        });
-
-    };
-
-    let askTitle = (response, convo) => {
-
-        convo.ask("What's the title?", (response, convo) => {
-            title = response.text;
-            askPhone(response, convo);
-            convo.next();
-        });
-
-    };
-
-    let askPhone = (response, convo) => {
-
-        convo.ask("What's the phone number?", (response, convo) => {
-            phone = response.text;
-            salesforce.createContact({firstName: firstName, lastName: lastName, title: title, phone: phone})
-                .then(contact => {
-                    bot.reply(message, {
-                        text: "I created the contact:",
-                        attachments: formatter.formatContact(contact)
-                    });
-                    convo.next();
-                })
-                .catch(error => {
-                    bot.reply(message, error);
-                    convo.next();
-                });
-        });
-
-    };
-
-    bot.reply(message, "OK, I can help you with that!");
-    bot.startConversation(message, askFirstName);
-
-});
-
-// To keep Heroku awake
-http.createServer(function(request, response) {
-    response.writeHead(200, {'Content-Type': 'text/plain'});
-    response.end('Ok, dyno is awake.');
-}).listen(process.env.PORT || 5000);
+   
